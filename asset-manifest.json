@@ -1,0 +1,10 @@
+{
+  "files": {
+    "main.js": "/webchat/static/js/main.ec815862.js",
+    "index.html": "/webchat/index.html",
+    "main.ec815862.js.map": "/webchat/static/js/main.ec815862.js.map"
+  },
+  "entrypoints": [
+    "static/js/main.ec815862.js"
+  ]
+}
