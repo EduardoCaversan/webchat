@@ -1,7 +1,7 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
 # dependencies
-/node_modules
+node_modules
 /.pnp
 .pnp.js
 
@@ -21,3 +21,19 @@
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Entre / Vite / Firebase
+dist/
+functions/lib/
+functions/node_modules/
+.tools/
+.env
+.env.*
+!.env.example
+!.env.emulator.example
+*.tsbuildinfo
+*-debug.log*
+.firebase/
+playwright-report/
+test-results/
+artifacts/

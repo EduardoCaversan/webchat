@@ -1,0 +1,11 @@
+node_modules
+functions/node_modules
+functions/lib
+dist
+.tools
+package-lock.json
+functions/package-lock.json
+playwright-report
+test-results
+artifacts
+*.log

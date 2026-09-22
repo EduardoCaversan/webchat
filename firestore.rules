@@ -1,0 +1,29 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function member(data) {
+      return signedIn() && data.schemaVersion == 2
+        && request.auth.uid in data.participants;
+    }
+    match /users/{uid} {
+      allow get: if signedIn() && request.auth.uid == uid;
+      allow list, create, update, delete: if false;
+    }
+    match /chats/{chatId} {
+      allow get: if member(resource.data);
+      allow list: if member(resource.data) && request.query.limit <= 100;
+      // All mutations require authenticated, validated, transactional callables.
+      // Direct creation, participant changes, sender spoofing, extra fields,
+      // message edits and deletes are forbidden, even to participants.
+      allow create, update, delete: if false;
+      match /messages/{messageId} {
+        allow get: if member(get(/databases/$(database)/documents/chats/$(chatId)).data);
+        allow list: if member(get(/databases/$(database)/documents/chats/$(chatId)).data)
+          && request.query.limit <= 100;
+        allow create, update, delete: if false;
+      }
+    }
+    match /{document=**} { allow read, write: if false; }
+  }
+}
