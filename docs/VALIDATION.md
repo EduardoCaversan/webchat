@@ -1,26 +1,16 @@
-# Validação local — 22/09/2026
+﻿# Validação da versão estática — 23/09/2026
 
-Ambiente Windows, Node 22.23.2 e Java 21 portáteis em `.tools/` (não versionados). O sistema tinha Node 21 e Java 17; as versões locais permitiram validar as dependências atuais sem modificar a instalação global. Nenhuma credencial do projeto Firebase antigo foi usada.
+Node 22.23.2 e Java 21 locais; emuladores `demo-entre`. Não houve gravação em Firebase remoto.
 
-| Verificação | Resultado |
-| --- | --- |
-| Instalação limpa (`npm ci`) | Passou com Node 22, usando o lockfile versionado. |
-| TypeScript frontend (`tsc -b`) e build (`vite build`) | Passaram. Build em `dist/`, SDK dividido em chunks; sem aviso de chunk acima de 500 kB. |
-| TypeScript Functions (`tsc -p functions/tsconfig.json`) | Passou. |
-| ESLint (`eslint .`) | Passou, sem erros ou avisos. |
-| Vitest unitário (`vitest run`) | 7 testes passaram. |
-| Firestore Emulator (`vitest run --config vitest.rules.config.ts`) | 10 testes passaram. |
-| Auth + Functions + Firestore (`vitest run --config vitest.integration.config.ts`) | 7 testes passaram. |
-| Chromium (`playwright test`) | 1 cenário completo passou, com duas contas e viewports desktop/mobile. |
-| `npm audit --omit=dev` | 0 vulnerabilidades. |
-| `npm --prefix functions audit --omit=dev` | 0 vulnerabilidades. |
-| `npm audit` completo | 7 avisos moderados, todos na árvore das ferramentas de desenvolvimento; 0 altos/críticos. |
-| `git diff --check` | Passou. |
+| Verificação                                  | Resultado                                                                                                          |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `npm run build`                              | Passou; TypeScript e Vite, `dist` com caminhos relativos para GitHub Pages.                                        |
+| `npm run lint`                               | Passou. Ferramentas temporárias em `.tools` são ignoradas.                                                         |
+| `npm test`                                   | 7 testes passaram.                                                                                                 |
+| Regras (`test:emulators`)                    | 15 testes passaram: isolamento, consultas limitadas, campos/remetentes falsos, recibos, imutabilidade e diretório. |
+| Integração Auth/Firestore (`test:emulators`) | 6 testes passaram: cadastro, busca, criação concorrente, envio repetido e nos dois sentidos, invasor e recibos.    |
+| Chromium (`test:emulators`)                  | Cenário com duas contas passou: descoberta, mensagens em tempo real, leitura, busca, mobile, tema e logout.        |
 
-Os comandos correspondem aos scripts `build`, `lint`, `test`, `test:rules`, `test:integration` e `test:emulators` do README. Nesta máquina, os executáveis foram chamados usando o Node 22 local e o PATH do Java 21. Foi necessário `FUNCTIONS_DISCOVERY_TIMEOUT=60` para a primeira inicialização do backend. O Firestore foi configurado na porta 8180 porque 8080 já tinha outro serviço.
+Os scripts foram executados com o Node 22 local no PATH. Build/Vitest precisaram de execução fora do sandbox devido a bloqueio de criação de subprocessos (`EPERM`). O teste concorrente revelou que a validação das regras pode ocorrer antes da rejeição de uma transação desatualizada; o cliente agora relê e repete até três vezes mantendo todas as regras. A suíte completa passou após essa correção.
 
-A suíte completa foi executada sequencialmente em um único ciclo de emuladores pelo script `scripts/verify-emulators.mjs`. O navegador confirmou cadastro, descoberta, criação, envio/recebimento, não lidas, confirmação de leitura após foco, busca, retorno mobile, tema persistido e logout. Capturas verificadas visualmente: `artifacts/desktop-chat.png`, `artifacts/mobile-chat.png`, `artifacts/desktop-dark.png`. Artefatos/relatórios ficam ignorados no Git.
-
-Os avisos restantes envolvem dependências transitivas de `firebase-tools` (OpenTelemetry/pubsub, csv-parse, stream-json e gaxios/uuid). O CLI foi atualizado; a sugestão automática de downgrade para Firebase CLI 10 não foi aplicada. Nas Functions, há um override restrito a `gaxios → uuid ^11.1.1`, que preserva a API v4 utilizada e foi exercitado nos testes de integração.
-
-Não verificado: OAuth Google real, App Check real, IAM/faturamento, publicação do índice em produção, deploy remoto e conteúdo do Firestore legado. Esses pontos exigem o projeto escolhido pelo responsável. O teste de Google no emulador usa uma identidade simulada aceita exclusivamente pelo Auth Emulator. Não há alegação de E2EE nem importação automática do histórico antigo.
+O fluxo testado não usa Functions ou App Check. O build de produção usa a configuração pública original `bro-s-chat-5d46d`; isso não confirma que o projeto/chave ainda estão ativos. OAuth Google real, configuração remota de regras/índices/domínios, plano Spark e publicação no GitHub Pages dependem do acesso do proprietário. Nenhum histórico remoto foi apagado ou migrado.

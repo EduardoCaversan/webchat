@@ -1,0 +1,25 @@
+name: entre-local
+
+services:
+  entre:
+    build: .
+    init: true
+    ports:
+      - '127.0.0.1:5173:5173'
+      - '127.0.0.1:4000:4000'
+      - '127.0.0.1:9099:9099'
+      - '127.0.0.1:8180:8180'
+      - '127.0.0.1:4400:4400'
+      - '127.0.0.1:9150:9150'
+    volumes:
+      - firebase-data:/data
+    stop_grace_period: 90s
+    healthcheck:
+      test: ['CMD', 'node', 'docker/healthcheck.mjs']
+      interval: 5s
+      timeout: 5s
+      start_period: 120s
+      retries: 12
+
+volumes:
+  firebase-data:

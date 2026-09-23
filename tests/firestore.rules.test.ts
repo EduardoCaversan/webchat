@@ -14,11 +14,21 @@ import {
   getDocs,
   limit,
   query,
+  serverTimestamp,
+  writeBatch,
   setDoc,
   updateDoc,
   where,
 } from 'firebase/firestore';
 let env: RulesTestEnvironment;
+const google = (uid: string) =>
+  env
+    .authenticatedContext(uid, {
+      email: `${uid}@example.com`,
+      email_verified: true,
+      firebase: { sign_in_provider: 'google.com' },
+    })
+    .firestore();
 beforeAll(async () => {
   env = await initializeTestEnvironment({
     projectId: 'demo-entre',
@@ -33,6 +43,8 @@ beforeEach(async () => {
       schemaVersion: 2,
       participants: ['alice', 'bob'],
       sequence: 1,
+      readSequence: { alice: 0, bob: 0 },
+      lastMessage: null,
     });
     await setDoc(doc(db, 'chats/private/messages/one'), {
       senderId: 'alice',
@@ -92,9 +104,9 @@ describe('acesso privado no Firestore', () => {
     await assertFails(getDocs(collection(db, 'chats/private/messages')));
     await assertFails(getDocs(query(collection(db, 'chats/private/messages'), limit(101))));
   });
-  it('não expõe diretório, busca por e-mail ou perfil de terceiros', async () => {
+  it('permite perfil por UID exato mas nega consultas e listagem de usuários', async () => {
     const db = env.authenticatedContext('bob').firestore();
-    await assertFails(getDoc(doc(db, 'users/alice')));
+    await assertSucceeds(getDoc(doc(db, 'users/alice')));
     await assertFails(
       getDocs(query(collection(db, 'users'), where('email', '==', 'alice@example.com'), limit(1))),
     );
@@ -163,5 +175,61 @@ describe('acesso privado no Firestore', () => {
         ),
       ),
     );
+  });
+});
+
+describe('gravações autenticadas sem backend', () => {
+  it('nega sequestro de e-mail e listagem do diretório', async () => {
+    const db = google('alice');
+    await assertFails(setDoc(doc(db, 'directory/bob@example.com'), { uid: 'alice' }));
+    await assertFails(getDocs(query(collection(db, 'directory'), limit(1))));
+    await assertSucceeds(getDoc(doc(db, 'directory/bob@example.com')));
+  });
+  it('nega mensagem sem atualização atômica da conversa', async () => {
+    await assertFails(
+      setDoc(doc(google('alice'), 'chats/private/messages/00000000-0000-4000-8000-000000000001'), {
+        senderId: 'alice',
+        text: 'Olá',
+        sequence: 2,
+        createdAt: serverTimestamp(),
+      }),
+    );
+  });
+  it('nega remetente forjado, campos extras, vazio e sequência forjada em lote', async () => {
+    for (const override of [
+      { senderId: 'bob' },
+      { text: '  ' },
+      { sequence: 10 },
+      { admin: true },
+    ]) {
+      const db = google('alice');
+      const messageId = '00000000-0000-4000-8000-000000000001';
+      const batch = writeBatch(db);
+      const message = { senderId: 'alice', text: 'Olá', sequence: 2, ...override };
+      batch.set(doc(db, 'chats/private/messages', messageId), {
+        ...message,
+        createdAt: serverTimestamp(),
+      });
+      batch.update(doc(db, 'chats/private'), {
+        sequence: message.sequence,
+        updatedAt: serverTimestamp(),
+        lastMessage: { ...message, messageId },
+      });
+      await assertFails(batch.commit());
+    }
+  });
+  it('permite apenas o próprio recibo e não além da última mensagem', async () => {
+    const ref = doc(google('alice'), 'chats/private');
+    await assertSucceeds(updateDoc(ref, { readSequence: { alice: 1, bob: 0 } }));
+    await assertFails(updateDoc(ref, { readSequence: { alice: 1, bob: 1 } }));
+    await assertFails(updateDoc(ref, { readSequence: { alice: 2, bob: 0 } }));
+    await assertFails(updateDoc(ref, { participants: ['alice', 'eve'] }));
+  });
+  it('nega edição e remoção mesmo com login Google válido', async () => {
+    const db = google('alice');
+    await assertFails(updateDoc(doc(db, 'chats/private/messages/one'), { text: 'Alterado' }));
+    await assertFails(deleteDoc(doc(db, 'chats/private/messages/one')));
+    await assertFails(updateDoc(doc(db, 'chats/private'), { sequence: 2 }));
+    await assertFails(deleteDoc(doc(db, 'chats/private')));
   });
 });

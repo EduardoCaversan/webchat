@@ -33,7 +33,7 @@ export function useMessages(chatId: string) {
         (snapshot) => {
           if (current !== generation.current) return;
           const incoming = snapshot.docs.map(
-            (item) => ({ ...item.data(), id: item.id }) as Message,
+            (item) => ({ ...item.data({ serverTimestamps: 'estimate' }), id: item.id }) as Message,
           );
           setMessages((previous) => mergeMessages(previous, incoming));
           if (incoming.length === PAGE) {
@@ -49,7 +49,9 @@ export function useMessages(chatId: string) {
     void getDocs(query(base, orderBy('sequence', 'desc'), limit(PAGE)))
       .then((snapshot) => {
         if (current !== generation.current) return;
-        const initial = snapshot.docs.map((item) => ({ ...item.data(), id: item.id }) as Message);
+        const initial = snapshot.docs.map(
+          (item) => ({ ...item.data({ serverTimestamps: 'estimate' }), id: item.id }) as Message,
+        );
         setMessages(mergeMessages(initial));
         oldest.current = initial.at(-1)?.sequence ?? null;
         setHasMore(initial.length === PAGE && oldest.current! > 1);
@@ -83,7 +85,9 @@ export function useMessages(chatId: string) {
         ),
       );
       if (current !== generation.current) return;
-      const older = snapshot.docs.map((item) => ({ ...item.data(), id: item.id }) as Message);
+      const older = snapshot.docs.map(
+        (item) => ({ ...item.data({ serverTimestamps: 'estimate' }), id: item.id }) as Message,
+      );
       oldest.current = older.at(-1)?.sequence ?? oldest.current;
       setMessages((previous) => mergeMessages(older, previous));
       setHasMore(older.length === PAGE && oldest.current! > 1);

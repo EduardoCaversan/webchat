@@ -2,26 +2,93 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     function signedIn() { return request.auth != null; }
+    function google() {
+      return signedIn() && request.auth.token.email_verified == true
+        && request.auth.token.firebase.sign_in_provider == 'google.com';
+    }
     function member(data) {
-      return signedIn() && data.schemaVersion == 2
-        && request.auth.uid in data.participants;
+      return signedIn() && data.schemaVersion == 2 && request.auth.uid in data.participants;
+    }
+    function profile(uid, p) {
+      let user = get(/databases/$(database)/documents/users/$(uid)).data;
+      return p.keys().hasOnly(['uid', 'name', 'photoURL'])
+        && p.uid == uid && p.name == user.name && p.photoURL == user.photoURL;
     }
     match /users/{uid} {
-      allow get: if signedIn() && request.auth.uid == uid;
-      allow list, create, update, delete: if false;
+      // Exact UID reads only; there is no public collection listing.
+      allow get: if signedIn();
+      allow create, update: if google() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['uid', 'name', 'photoURL', 'email', 'schemaVersion', 'updatedAt'])
+        && request.resource.data.uid == uid && request.resource.data.schemaVersion == 2
+        && request.resource.data.email == request.auth.token.email.lower()
+        && request.resource.data.name is string && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 100
+        && (request.resource.data.photoURL == null || (request.resource.data.photoURL is string && request.resource.data.photoURL.size() <= 2048))
+        && request.resource.data.updatedAt == request.time;
+    }
+    match /directory/{email} {
+      // Exact email lookup. Authenticated guessing cannot be rate-limited by these rules.
+      allow get: if google();
+      allow create, update: if google() && email == request.auth.token.email.lower()
+        && request.resource.data.keys().hasOnly(['uid'])
+        && request.resource.data.uid == request.auth.uid
+        && getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.email == email;
     }
     match /chats/{chatId} {
-      allow get: if member(resource.data);
+      allow get: if signedIn() && (!exists(/databases/$(database)/documents/chats/$(chatId)) || member(resource.data));
       allow list: if member(resource.data) && request.query.limit <= 100;
-      // All mutations require authenticated, validated, transactional callables.
-      // Direct creation, participant changes, sender spoofing, extra fields,
-      // message edits and deletes are forbidden, even to participants.
-      allow create, update, delete: if false;
+      allow create: if google() && validChat();
+      function validChat() {
+        let d = request.resource.data;
+        let p = d.participants;
+        return d.keys().hasOnly(['schemaVersion', 'participants', 'profiles', 'sequence', 'lastMessage', 'readSequence', 'createdAt', 'updatedAt'])
+          && d.schemaVersion == 2 && p is list && p.size() == 2
+          && p[0].matches('^[A-Za-z0-9]+$') && p[1].matches('^[A-Za-z0-9]+$')
+          && p[0] < p[1] && request.auth.uid in p
+          && chatId == 'direct_' + p[0] + '__' + p[1]
+          && d.profiles.keys().hasOnly(p) && profile(p[0], d.profiles[p[0]]) && profile(p[1], d.profiles[p[1]])
+          && d.sequence == 0 && d.lastMessage == null
+          && d.readSequence.keys().hasOnly(p) && d.readSequence[p[0]] == 0 && d.readSequence[p[1]] == 0
+          && d.createdAt == request.time && d.updatedAt == request.time;
+      }
+      function reading() {
+        let d = request.resource.data;
+        let uid = request.auth.uid;
+        return d.diff(resource.data).affectedKeys().hasOnly(['readSequence'])
+          && d.readSequence.diff(resource.data.readSequence).affectedKeys().hasOnly([uid])
+          && d.readSequence[uid] is int && d.readSequence[uid] >= resource.data.readSequence[uid]
+          && d.readSequence[uid] <= resource.data.sequence;
+      }
+      function sending() {
+        let d = request.resource.data;
+        let m = d.lastMessage;
+        let path = /databases/$(database)/documents/chats/$(chatId)/messages/$(m.messageId);
+        let message = getAfter(path).data;
+        return d.diff(resource.data).affectedKeys().hasOnly(['sequence', 'lastMessage', 'updatedAt'])
+          && d.sequence == resource.data.sequence + 1 && d.updatedAt == request.time
+          && m.keys().hasOnly(['text', 'senderId', 'sequence', 'messageId'])
+          && m.senderId == request.auth.uid && m.sequence == d.sequence
+          && !exists(path) && message.senderId == request.auth.uid
+          && message.text == m.text && message.sequence == d.sequence && message.createdAt == request.time;
+      }
+      allow update: if google() && member(resource.data) && (reading() || sending());
       match /messages/{messageId} {
-        allow get: if member(get(/databases/$(database)/documents/chats/$(chatId)).data);
-        allow list: if member(get(/databases/$(database)/documents/chats/$(chatId)).data)
-          && request.query.limit <= 100;
-        allow create, update, delete: if false;
+        function parent() { return get(/databases/$(database)/documents/chats/$(chatId)).data; }
+        allow get: if member(parent());
+        allow list: if member(parent()) && request.query.limit <= 100;
+        allow create: if google() && member(parent()) && validMessage();
+        function validMessage() {
+          let d = request.resource.data;
+          let after = getAfter(/databases/$(database)/documents/chats/$(chatId)).data;
+          return d.keys().hasOnly(['senderId', 'text', 'sequence', 'createdAt'])
+            && messageId.matches('^[a-fA-F0-9-]{36}$')
+            && d.senderId == request.auth.uid && d.text is string
+            && d.text.size() > 0 && d.text.size() <= 4000 && d.text.matches('[\\s\\S]*[^\\s][\\s\\S]*')
+            && d.sequence is int && d.sequence == parent().sequence + 1
+            && d.createdAt == request.time && after.sequence == d.sequence
+            && after.lastMessage.messageId == messageId && after.lastMessage.text == d.text
+            && after.lastMessage.senderId == request.auth.uid;
+        }
       }
     }
     match /{document=**} { allow read, write: if false; }

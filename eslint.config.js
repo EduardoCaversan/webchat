@@ -5,6 +5,7 @@ import globals from 'globals';
 export default ts.config(
   {
     ignores: [
+      '.tools/**',
       'dist/**',
       'functions/lib/**',
       'node_modules/**',

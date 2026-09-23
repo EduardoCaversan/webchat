@@ -51,7 +51,9 @@ export function useChats(uid: string, selectedId: string | null) {
     const stop = onSnapshot(
       query(base(), limit(PAGE)),
       (snapshot) => {
-        const latest = snapshot.docs.map((item) => ({ ...item.data(), id: item.id }) as Chat);
+        const latest = snapshot.docs.map(
+          (item) => ({ ...item.data({ serverTimestamps: 'estimate' }), id: item.id }) as Chat,
+        );
         setChats((previous) =>
           sort([...new Map([...previous, ...latest].map((chat) => [chat.id, chat])).values()]),
         );
@@ -78,7 +80,11 @@ export function useChats(uid: string, selectedId: string | null) {
     return onSnapshot(
       doc(db!, 'chats', selectedId),
       (snapshot) => {
-        setSelected(snapshot.exists() ? ({ ...snapshot.data(), id: snapshot.id } as Chat) : null);
+        setSelected(
+          snapshot.exists()
+            ? ({ ...snapshot.data({ serverTimestamps: 'estimate' }), id: snapshot.id } as Chat)
+            : null,
+        );
         if (!snapshot.exists())
           setError('Esta conversa não está disponível. Volte à lista e tente novamente.');
       },
@@ -94,7 +100,9 @@ export function useChats(uid: string, selectedId: string | null) {
     try {
       const snapshot = await getDocs(query(base(), startAfter(cursor.current), limit(PAGE)));
       if (current !== generation.current) return;
-      const older = snapshot.docs.map((item) => ({ ...item.data(), id: item.id }) as Chat);
+      const older = snapshot.docs.map(
+        (item) => ({ ...item.data({ serverTimestamps: 'estimate' }), id: item.id }) as Chat,
+      );
       // A live update wins if the page also contains that same conversation.
       setChats((previous) =>
         sort([...new Map([...older, ...previous].map((chat) => [chat.id, chat])).values()]),

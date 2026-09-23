@@ -37,3 +37,4 @@ functions/node_modules/
 playwright-report/
 test-results/
 artifacts/
+firebase.docker.json
