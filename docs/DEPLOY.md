@@ -9,7 +9,7 @@ Abra o [console Firebase](https://console.firebase.google.com/) e selecione **br
 1. Em **Authentication → Sign-in method**, habilite **Google** e escolha o e-mail de suporte.
 2. Em **Authentication → Settings → Authorized domains**, adicione `eduardocaversan.github.io` (sem protocolo ou `/webchat`). Para desenvolvimento, adicione `localhost` e `127.0.0.1`. Se usar domínio próprio, autorize-o também.
 3. Em **Firestore Database**, mantenha/crie o banco `(default)` na edição Standard. Em **Rules**, substitua o conteúdo por `firestore.rules` e clique **Publish**. Não use regras abertas de modo de teste.
-4. Em **Indexes**, crie o índice composto de coleção `chats`: `schemaVersion` Ascending, `participants` Arrays, `updatedAt` Descending, escopo Collection. O arquivo `firestore.indexes.json` é a fonte exata. Aguarde ficar habilitado.
+4. Não é necessário criar índice composto para a lista de conversas. Ela consulta apenas os campos de participação e ordena os resultados no navegador. O arquivo `firestore.indexes.json` fica vazio de propósito.
 5. Se você já ativou enforcement do **App Check para Firestore/Authentication**, desative-o para esta versão, que não usa App Check.
 6. Confirme em **Usage and billing** que o projeto está no **Spark**. Não habilite Blaze para esta aplicação. Se o projeto já é Blaze ou tem funções antigas implantadas, esta mudança de código não muda o plano nem remove serviços remotos: revise-os no console antes de considerar o projeto sem possibilidade de cobrança.
 
@@ -48,6 +48,6 @@ Fontes: [planos Firebase](https://firebase.google.com/docs/projects/billing/fire
 - `auth/unauthorized-domain`: adicione o domínio em Authentication.
 - `auth/api-key-not-valid` / projeto inexistente: copie a configuração Web atual do console.
 - `permission-denied`: publique as regras atuais, confira Google e e-mail verificado.
-- `failed-precondition`: crie o índice e aguarde a construção.
+- `failed-precondition`: publique novamente as regras e confirme que o banco Firestore `(default)` existe no projeto selecionado.
 - Pessoa não encontrada: ela precisa entrar uma vez na versão atual; registros antigos não têm entrada em `directory`.
 - Build exibindo “Ambiente local”: remova `.env.local` de emuladores e refaça o build.

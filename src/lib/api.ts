@@ -15,7 +15,8 @@ export function errorMessage(error: unknown): string {
     'resource-exhausted': 'A cota gratuita do Firebase foi atingida. Tente novamente mais tarde.',
     'permission-denied': 'Você não tem acesso a esses dados. Verifique sua sessão.',
     unavailable: 'Conexão indisponível. Tentaremos reconectar automaticamente.',
-    'failed-precondition': 'A consulta não está disponível. Confira os índices do Firestore.',
+    'failed-precondition':
+      'Não foi possível carregar os dados. Publique as regras atuais do Firestore e tente novamente.',
   };
   if (code === 'chat/invalid') return (error as Error).message;
   if (messages[code]) return messages[code];

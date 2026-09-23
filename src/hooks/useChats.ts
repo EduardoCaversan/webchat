@@ -5,7 +5,6 @@ import {
   getDocs,
   limit,
   onSnapshot,
-  orderBy,
   query,
   startAfter,
   where,
@@ -35,7 +34,6 @@ export function useChats(uid: string, selectedId: string | null) {
         collection(db!, 'chats'),
         where('schemaVersion', '==', 2),
         where('participants', 'array-contains', uid),
-        orderBy('updatedAt', 'desc'),
       ),
     [uid],
   );
